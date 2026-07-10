@@ -12,7 +12,7 @@
 }
 
 # --- 3. 原生组件与 WorkManager ---
--keep public class * extends android.appwidget.AppWidgetProvider {
+-keep public class * extends android.app.widget.AppWidgetProvider {
     public void *(android.content.Context, android.content.Intent);
     <init>();
 }
@@ -98,3 +98,14 @@
 -keep class com.xingheyuzhuan.shiguangschedule.data.model.** { *; }
 -keep @androidx.room.Entity class * { *; }
 -keep class * extends androidx.room.RoomDatabase { *; }
+
+# --- 10. 混淆字典 ---
+-obfuscationdictionary proguard-dict.txt
+-classobfuscationdictionary proguard-dict.txt
+-packageobfuscationdictionary proguard-dict.txt
+
+# --- 11. 更强的优化(谨慎升级) ---
+-optimizationpasses 5
+-allowaccessmodification
+-mergeinterfacesaggressively
+-overloadaggressively
