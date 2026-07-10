@@ -1,8 +1,20 @@
 <?xml version="1.0" encoding="utf-8"?>
 <network-security-config>
-    <base-config cleartextTrafficPermitted="true">
+    <!-- 默认拒绝明文流量,仅对指定教育域名放通 -->
+    <base-config cleartextTrafficPermitted="false">
         <trust-anchors>
             <certificates src="system" />
         </trust-anchors>
     </base-config>
+
+    <!-- 韶关学院教务系统(HTTP,夜间 22-23 点维护关闭) -->
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="true">jwc.sgu.edu.cn</domain>
+    </domain-config>
+
+    <!-- 常用中国高校 HTTPS 教务域名白名单,后续可按需添加pin-set -->
+    <domain-config cleartextTrafficPermitted="false">
+        <domain includeSubdomains="true">jwgl.bupt.edu.cn</domain>
+        <domain includeSubdomains="true">my.cqu.edu.cn</domain>
+    </domain-config>
 </network-security-config>
