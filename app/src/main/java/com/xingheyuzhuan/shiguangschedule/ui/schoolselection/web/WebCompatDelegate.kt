@@ -13,11 +13,11 @@ class WebCompatDelegate(private val webView: WebView) {
             javaScriptEnabled = true
             domStorageEnabled = true
             databaseEnabled = true
-            allowUniversalAccessFromFileURLs = true
-            allowFileAccessFromFileURLs = true
-            allowFileAccess = true
-            allowContentAccess = true
-            mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+            allowUniversalAccessFromFileURLs = false
+            allowFileAccessFromFileURLs = false
+            allowFileAccess = false
+            allowContentAccess = false
+            mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
 
             if (isDesktopMode) {
                 useWideViewPort = true
@@ -100,10 +100,10 @@ class WebCompatDelegate(private val webView: WebView) {
                 meta.content = "width=$desktopWidth, initial-scale=1.0, minimum-scale=0.1, maximum-scale=5.0, user-scalable=yes";
                 document.head.appendChild(meta);
                 var css = 'html, body { ' +
-                          'width: ${desktopWidth}px !important; ' + 
-                          'min-width: ${desktopWidth}px !important; ' + 
-                          'overflow-x: auto !important; ' + 
-                          'position: relative !important; ' + 
+                          'width: ${desktopWidth}px !important; ' +
+                          'min-width: ${desktopWidth}px !important; ' +
+                          'overflow-x: auto !important; ' +
+                          'position: relative !important; ' +
                           'display: block !important; ' +
                           '-webkit-overflow-scrolling: touch !important;' +
                           '}';
