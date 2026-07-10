@@ -99,6 +99,13 @@ class GitUpdater @Inject constructor(
 
     /**
      * 验证仓库的可访问性和历史合法性（基准灯塔标签检查）。
+     *
+     * 注意：仅 tag 匹配不够,还需 rebase 校验。
+     * 当前实现仅验证远程仓库是否包含名称和 SHA-1 都匹配的 lighthouse 标签,
+     * 但无法验证 fork 是否真正将官方 base tag 对应的 commit 作为其历史祖先。
+     * 伪造 tag 攻击可通过仅校验 tag SHA 的防线。
+     * TODO: rebase 校验——在 updateResourceFiles 首次 clone 完成后,使用 RevWalk
+     *       检查 OFFICIAL_BASE_TAG_SHA 对应的 commit 是否在 fork 分支历史中。
      */
     private fun isLegitimateFork(userForkUrl: String, credentialsProvider: CredentialsProvider?): Boolean {
         try {
@@ -197,6 +204,21 @@ class GitUpdater @Inject constructor(
 
                 cloneCommand.call()
             }
+
+            // TODO: rebase 校验——clone 完成后,使用 RevWalk 检查 OFFICIAL_BASE_TAG_SHA
+            //       对应的 commit 是否在 fork 分支历史中。若不在历史中,说明 fork 可能伪造了 tag,
+            //       应拒绝更新并记录日志。
+            //
+            // 实现示例:
+            //   val repo = git.repository
+            //   val objectId = ObjectId.fromString(OFFICIAL_BASE_TAG_SHA)
+            //   val walk = RevWalk(repo)
+            //   val tagCommit = walk.parseCommit(objectId)
+            //   val branchHead = repo.resolve("refs/remotes/origin/${repoInfo.branch}")
+            //   if (!walk.isMergedInto(tagCommit, walk.parseCommit(branchHead))) {
+            //       onLog("致命错误：rebase 校验失败,官方 base tag 不在 fork 历史中。")
+            //       return false
+            //   }
 
             git.use {
                 // --- 文件暂存逻辑（代替立即写入） ---
