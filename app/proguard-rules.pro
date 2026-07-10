@@ -1,5 +1,6 @@
 # -------------------------------------------------------------------------
 # R8/ProGuard 混淆配置文件
+# 本次修订(v2): 修复第 15 行 AppWidgetProvider 包名 typo(android.appwidget 是正确包名)
 # -------------------------------------------------------------------------
 
 # --- 1. 基础全局设置 ---
@@ -37,7 +38,7 @@
 -dontwarn org.apache.commons.compress.**
 -dontwarn org.eclipse.jgit.internal.storage.dfs.**
 
-# 允许混淆 JGit 类名以减小体积，但保留核心配置
+# 允许混淆 JGit 类名以减小体积,但保留核心配置
 -keepnames class org.eclipse.jgit.**
 -keep class org.eclipse.jgit.lib.CoreConfig { <methods>; }
 -keep class org.eclipse.jgit.internal.JGitText { *; }

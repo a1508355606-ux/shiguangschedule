@@ -7,17 +7,24 @@ class WebCompatDelegate(private val webView: WebView) {
 
     /**
      * 增强 WebView 基础配置
+     *
+     * 修订说明(v2):
+     *  - 关闭 allowUniversalAccessFromFileURLs / allowFileAccessFromFileURLs /
+     *    allowFileAccess / allowContentAccess,阻断 file:// 协议读取本地文件路径
+     *  - mixedContentMode 改为 NEVER_ALLOW,阻止 HTTPS 页面加载 HTTP 子资源
+     *  - javaScriptEnabled / domStorageEnabled / databaseEnabled 维持开启,
+     *    因为 WebView 是教务导入的核心通道,关了功能会失效
      */
     fun enhanceSettings(isDesktopMode: Boolean): WebCompatDelegate {
         webView.settings.apply {
             javaScriptEnabled = true
             domStorageEnabled = true
             databaseEnabled = true
-            allowUniversalAccessFromFileURLs = true
-            allowFileAccessFromFileURLs = true
-            allowFileAccess = true
-            allowContentAccess = true
-            mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+            allowUniversalAccessFromFileURLs = false
+            allowFileAccessFromFileURLs = false
+            allowFileAccess = false
+            allowContentAccess = false
+            mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
 
             if (isDesktopMode) {
                 useWideViewPort = true
@@ -79,7 +86,7 @@ class WebCompatDelegate(private val webView: WebView) {
             override fun onReceivedSslError(v: WebView, h: SslErrorHandler, e: android.net.http.SslError) =
                 original.onReceivedSslError(v, h, e)
 
-            override fun onReceivedError(v: WebView, q: WebResourceRequest, e: WebResourceError) =
+            override fun onReceivedError(v: WebView, q: WebResourceRequest, e: android.webResourceError) =
                 original.onReceivedError(v, q, e)
         }
     }
@@ -100,10 +107,10 @@ class WebCompatDelegate(private val webView: WebView) {
                 meta.content = "width=$desktopWidth, initial-scale=1.0, minimum-scale=0.1, maximum-scale=5.0, user-scalable=yes";
                 document.head.appendChild(meta);
                 var css = 'html, body { ' +
-                          'width: ${desktopWidth}px !important; ' + 
-                          'min-width: ${desktopWidth}px !important; ' + 
-                          'overflow-x: auto !important; ' + 
-                          'position: relative !important; ' + 
+                          'width: ${desktopWidth}px !important; ' +
+                          'min-width: ${desktopWidth}px !important; ' +
+                          'overflow-x: auto !important; ' +
+                          'position: relative !important; ' +
                           'display: block !important; ' +
                           '-webkit-overflow-scrolling: touch !important;' +
                           '}';
