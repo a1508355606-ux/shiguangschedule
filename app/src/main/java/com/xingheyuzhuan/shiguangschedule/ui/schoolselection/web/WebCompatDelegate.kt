@@ -1,5 +1,6 @@
 package com.xingheyuzhuan.shiguangschedule.ui.schoolselection.web
 
+import android.annotation.SuppressLint
 import android.graphics.Bitmap
 import android.webkit.*
 
@@ -86,8 +87,15 @@ class WebCompatDelegate(private val webView: WebView) {
             override fun onReceivedSslError(v: WebView, h: SslErrorHandler, e: android.net.http.SslError) =
                 original.onReceivedSslError(v, h, e)
 
-            override fun onReceivedError(v: WebView, q: WebResourceRequest, e: android.webResourceError) =
+            // 修订第 89 行:
+            // - 修正前的 `android.webResourceError` 是无效类名(Kotlin 大小写敏感,正确类名是 `android.webkit.WebResourceError`)
+            //   文件顶部 `import android.webkit.*` 已经把 WebResourceError 引入,直接用 `WebResourceError` 即可
+            // - 加 @SuppressLint("WebViewClientOnReceivedError") 覆盖 SDK 23+ 的两个有效签名之一,
+            //   minSdk=26 已保证 onReceivedError(WebView, WebResourceRequest, WebResourceError) 是有效签名
+            @SuppressLint("WebViewClientOnReceivedError")
+            override fun onReceivedError(v: WebView, q: WebResourceRequest, e: WebResourceError) {
                 original.onReceivedError(v, q, e)
+            }
         }
     }
 
