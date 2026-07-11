@@ -19,38 +19,45 @@ jobs:
           distribution: temurin
           java-version: 21
 
-      - name: 安装 Android SDK 命令行工具(用 action,自动管 sdkmanager)
-        uses: android-actions/setup-android@v3
-        with:
-          cmdline-tools: latest
-
-      - name: 接受 Android SDK licenses
-        run: yes | sdkmanager --licenses
-
-      - name: 安装 platforms 和 build-tools(锁 35,稳)
+      # 关键:把 SDK Manager 的网络请求重定向到阿里云镜像,
+      # 绕开 dl.google.com 在 GitHub Actions runner 上的可达性问题。
+      # 镜像源:https://mirrors.aliyun.com/android.googlesource.com
+      - name: 安装 Android SDK(用国内镜像)
         run: |
-          echo "=== 当前已安装的包 ==="
-          sdkmanager --list_installed 2>&1 | head -30 || true
-          echo ""
-          echo "=== 安装 platforms;android-35 和 build-tools;35.0.0 ==="
-          yes | sdkmanager "platforms;android-35" "build-tools;35.0.0"
+          set -e
 
-      - name: 用 sed 临时把 compileSdk / targetSdk 改成 35
-        run: |
-          echo "=== 改写前的 build.gradle.kts(compileSdk 一段)==="
-          grep -n -E 'compileSdk|targetSdk' app/build.gradle.kts || true
-          # 临时把 compileSdk = 37 → 35,targetSdk = 37 → 35
-          # 备份原文件
-          cp app/build.gradle.kts app/build.gradle.kts.bak
-          sed -i -E 's/(compileSdk\s*=\s*)[0-9]+/\135/' app/build.gradle.kts
-          sed -i -E 's/(targetSdk\s*=\s*)[0-9]+/\135/' app/build.gradle.kts
-          echo "=== 改写后的 build.gradle.kts(compileSdk 一段)==="
-          grep -n -E 'compileSdk|targetSdk' app/build.gradle.kts || true
+          # 1. 装 cmdline-tools(从 mirrors 拉,而不是 dl.google.com)
+          cd /tmp
+          echo "=== 下载 cmdline-tools ==="
+          curl -fsSL -o cmdline-tools.zip \
+            "https://mirrors.cloud.tencent.com/AndroidSDK/commandlinetools-linux-13114758_latest.zip" \
+            || curl -fsSL -o cmdline-tools.zip \
+            "https://dl.google.com/android/repository/commandlinetools-linux-13114758_latest.zip"
+
+          ls -la cmdline-tools.zip
+          mkdir -p $ANDROID_HOME/cmdline-tools
+          unzip -q cmdline-tools.zip -d $ANDROID_HOME/cmdline-tools
+          mv $ANDROID_HOME/cmdline-tools/cmdline-tools $ANDROID_HOME/cmdline-tools/latest
+          ls $ANDROID_HOME/cmdline-tools/latest/bin/
+
+          # 2. 接受所有 licenses
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses
+
+          # 3. 装 platforms;android-37 + build-tools;37.0.0(关键)
+          #    路径写死 37,因为多个依赖强制要求 compileSdk >= 37(参见上次日志)
+          echo "=== 装 platforms;android-37 ==="
+          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "platforms;android-37" 2>&1 | tail -10
+
+          echo "=== 装 build-tools;37.0.0 ==="
+          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "build-tools;37.0.0" 2>&1 | tail -10
+
+          echo "=== 验证安装 ==="
+          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --list_installed | head -30
 
       - name: 赋予 gradlew 执行权限
         run: chmod +x gradlew
 
-      - name: 构建 prod release APK
+      - name: 构建 prod release APK(项目 compileSdk=37 保留不动)
         run: ./gradlew assembleProdRelease --no-daemon --stacktrace
 
       - name: 定位 APK
@@ -58,13 +65,13 @@ jobs:
         run: |
           APK_PATH=$(find app/build/outputs/apk/prod/release -name "*.apk" | head -1)
           if [ -z "$APK_PATH" ]; then
-            echo "ERROR: 没找到 APK 文件"
-            find app/build/outputs -type f -name "*.apk" -o -name "*.aab" 2>/dev/null
+            echo "ERROR: 没找到 APK"
+            find app/build/outputs -type f -name "*.apk" -o -name "*.aab" 2>/dev/null || true
             exit 1
           fi
           echo "apk_path=$APK_PATH" >> $GITHUB_OUTPUT
           echo "apk_name=$(basename $APK_PATH)" >> $GITHUB_OUTPUT
-          echo "APK 找到: $APK_PATH"
+          echo "APK: $APK_PATH"
 
       - name: 上传 APK 作为 artifact
         uses: actions/upload-artifact@v4
