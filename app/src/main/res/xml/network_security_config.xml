@@ -12,4 +12,12 @@
         <domain includeSubdomains="true">jwgl.bupt.edu.cn</domain>
         <domain includeSubdomains="true">my.cqu.edu.cn</domain>
     </domain-config>
+
+    <!-- BUG-001 维修(2026-07-11):韶关学院教务系统(湖南强智科技 HTTP-only 部署,
+         登录入口 http://jwc.sgu.edu.cn/Logon.do)被 base-config cleartextTrafficPermitted="false"
+         全网阻断,WebView 报 net::ERR_CLEARTEXT_NOT_PERMITTED,用户看到 Chromium 默认红色错误页。
+         显式放行 sgu.edu.cn 的明文流量;HTTPS-only 域名行为不变。 -->
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="true">sgu.edu.cn</domain>
+    </domain-config>
 </network-security-config>
