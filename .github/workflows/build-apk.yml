@@ -19,65 +19,52 @@ jobs:
           distribution: temurin
           java-version: 21
 
-      - name: 展示镜像预装的 Android SDK 组件
-        run: |
-          echo "=== sdkmanager 路径 ==="
-          ls -la $ANDROID_HOME/cmdline-tools/latest/bin/ 2>/dev/null || echo "cmdline-tools 缺失"
-          echo ""
-          echo "=== 已安装的 SDK 包 ==="
-          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --list_installed 2>/dev/null || echo "(sdkmanager 不可用,跳过检查)"
-
-      - name: 安装 compileSdk 所需的 platforms 与 build-tools(读 build.gradle.kts,自动适配)
-        run: |
-          # 1) 读 build.gradle.kts 的 compileSdk(失败则默认 34)
-          COMPILE_SDK=$(grep -E '^\s*compileSdk\s*=' app/build.gradle.kts | head -1 | sed -E 's/.*compileSdk\s*=\s*([0-9]+).*/\1/')
-          COMPILE_SDK=${COMPILE_SDK:-34}
-          echo "[INFO] 需要 platforms;android-${COMPILE_SDK} 和 build-tools;${COMPILE_SDK}.0.0"
-
-          # 2) platforms;android-${COMPILE_SDK}(条件安装,失败回退 35)
-          if [ -d "$ANDROID_HOME/platforms/android-${COMPILE_SDK}" ]; then
-            echo "[OK] platforms;android-${COMPILE_SDK} 已安装,跳过"
-          else
-            echo "[INFO] 安装 platforms;android-${COMPILE_SDK}..."
-            if yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "platforms;android-${COMPILE_SDK}"; then
-              echo "[OK] platforms;android-${COMPILE_SDK} 安装成功"
-            else
-              echo "[WARN] ${COMPILE_SDK} 安装失败,回退到 35"
-              yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "platforms;android-35"
-            fi
-          fi
-
-          # 3) build-tools;${COMPILE_SDK}.0.0(条件安装,失败回退 35.0.0)
-          if [ -d "$ANDROID_HOME/build-tools/${COMPILE_SDK}.0.0" ]; then
-            echo "[OK] build-tools;${COMPILE_SDK}.0.0 已安装,跳过"
-          else
-            echo "[INFO] 安装 build-tools;${COMPILE_SDK}.0.0..."
-            if yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "build-tools;${COMPILE_SDK}.0.0"; then
-              echo "[OK] build-tools;${COMPILE_SDK}.0.0 安装成功"
-            else
-              echo "[WARN] build-tools;${COMPILE_SDK}.0.0 安装失败,回退到 35.0.0"
-              yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "build-tools;35.0.0"
-            fi
-          fi
-
-          echo "[DONE] SDK 组件就绪,COMPILE_SDK=$COMPILE_SDK"
+      - name: 安装 Android SDK 命令行工具(用 action,自动管 sdkmanager)
+        uses: android-actions/setup-android@v3
+        with:
+          cmdline-tools: latest
 
       - name: 接受 Android SDK licenses
-        run: yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses
+        run: yes | sdkmanager --licenses
+
+      - name: 安装 platforms 和 build-tools(锁 35,稳)
+        run: |
+          echo "=== 当前已安装的包 ==="
+          sdkmanager --list_installed 2>&1 | head -30 || true
+          echo ""
+          echo "=== 安装 platforms;android-35 和 build-tools;35.0.0 ==="
+          yes | sdkmanager "platforms;android-35" "build-tools;35.0.0"
+
+      - name: 用 sed 临时把 compileSdk / targetSdk 改成 35
+        run: |
+          echo "=== 改写前的 build.gradle.kts(compileSdk 一段)==="
+          grep -n -E 'compileSdk|targetSdk' app/build.gradle.kts || true
+          # 临时把 compileSdk = 37 → 35,targetSdk = 37 → 35
+          # 备份原文件
+          cp app/build.gradle.kts app/build.gradle.kts.bak
+          sed -i -E 's/(compileSdk\s*=\s*)[0-9]+/\135/' app/build.gradle.kts
+          sed -i -E 's/(targetSdk\s*=\s*)[0-9]+/\135/' app/build.gradle.kts
+          echo "=== 改写后的 build.gradle.kts(compileSdk 一段)==="
+          grep -n -E 'compileSdk|targetSdk' app/build.gradle.kts || true
 
       - name: 赋予 gradlew 执行权限
         run: chmod +x gradlew
 
-      - name: 构建加固版 prod release APK
+      - name: 构建 prod release APK
         run: ./gradlew assembleProdRelease --no-daemon --stacktrace
 
       - name: 定位 APK
         id: locate-apk
         run: |
           APK_PATH=$(find app/build/outputs/apk/prod/release -name "*.apk" | head -1)
+          if [ -z "$APK_PATH" ]; then
+            echo "ERROR: 没找到 APK 文件"
+            find app/build/outputs -type f -name "*.apk" -o -name "*.aab" 2>/dev/null
+            exit 1
+          fi
           echo "apk_path=$APK_PATH" >> $GITHUB_OUTPUT
           echo "apk_name=$(basename $APK_PATH)" >> $GITHUB_OUTPUT
-          echo "APK: $APK_PATH"
+          echo "APK 找到: $APK_PATH"
 
       - name: 上传 APK 作为 artifact
         uses: actions/upload-artifact@v4
@@ -85,3 +72,4 @@ jobs:
           name: shiguangschedule-prod-release
           path: ${{ steps.locate-apk.outputs.apk_path }}
           retention-days: 7
+          if-no-files-found: error
