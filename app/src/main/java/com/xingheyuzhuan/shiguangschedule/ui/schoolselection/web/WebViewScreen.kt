@@ -225,16 +225,16 @@ fun WebViewScreen(
     }
 
     // 资源清理
+    // 2026-07-11 BUG-008 维修:停止在 dispose 里全清 Cookie / WebStorage。
+    // 旧实现 removeAllCookies + deleteAllData 会在用户临时退回主课表页再进 WebView 时
+    // 把强智教务已登录的 JSESSIONID 清掉,用户二次进入会被服务器 403 拒收 → 表面症状类红屏。
+    // 现在只清「本 WebView 进程私有」的缓存/表单/历史,Cookie 保留显式「退出登录」时清。
     DisposableEffect(webView) {
         onDispose {
             webView.stopLoading()
             webView.clearCache(true)
             webView.clearFormData()
             webView.clearHistory()
-            val cookieManager = CookieManager.getInstance()
-            cookieManager.removeAllCookies(null)
-            cookieManager.flush()
-            WebStorage.getInstance().deleteAllData()
             webView.removeAllViews()
             webView.destroy()
         }
