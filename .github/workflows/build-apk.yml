@@ -19,34 +19,35 @@ jobs:
           distribution: temurin
           java-version: 21
 
-      # setup-android@v3 在 runner 上自动:
-      # - 检测预装 cmdline-tools 12.0 不兼容,装 16.0
-      # - 接受所有 Android SDK licenses
-      # - 接受 packages: 指定的包
-      # 日志证明:cmdline-tools 16.0 + platform-tools 都装成功
-      # 现在再加 platforms;android-37 和 build-tools;37.0.0,符合
-      # 项目 compileSdk=37 + 23 个依赖的 metadata 要求
-      - name: 安装 Android SDK(包括 platforms;android-37)
+      # 1) 装 cmdline-tools(action 的 preinstalled 12.0 不兼容,
+      # action 自动装 16.0,但不装 platforms,只装 cmdline-tools)
+      - name: 安装 cmdline-tools
         uses: android-actions/setup-android@v3
         with:
           cmdline-tools-version: 12266719
-          accept-android-sdk-licenses: true
-          packages: |
-            platforms;android-37
-            build-tools;37.0.0
-            platform-tools
 
-      - name: 验证 SDK 已装
+      # 2) 显式 accept 所有 SDK licenses
+      #    用 yes 自动回 y,绕开 setup-android@v3 自身的 license 卡住 bug
+      - name: 接受所有 Android SDK licenses
         run: |
-          echo "=== 已安装的 SDK 包 ==="
-          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --list_installed 2>&1 | head -20
-          echo ""
-          ls -la $ANDROID_HOME/platforms/ $ANDROID_HOME/build-tools/
+          yes 2>/dev/null | $ANDROID_HOME/cmdline-tools/16.0/bin/sdkmanager --licenses 2>&1 | tail -5
+          echo "Licenses accepted (above如果看到 'All SDK package licenses accepted')"
+
+      # 3) 装 platforms;android-37 + build-tools;37.0.0 + platform-tools
+      - name: 装 SDK 包(compileSdk=37 需要 37)
+        run: |
+          $ANDROID_HOME/cmdline-tools/16.0/bin/sdkmanager \
+            "platforms;android-37" \
+            "build-tools;37.0.0" \
+            "platform-tools" 2>&1 | tail -20
+          echo "=== 已装的包 ==="
+          $ANDROID_HOME/cmdline-tools/16.0/bin/sdkmanager --list_installed 2>&1 | head -20
 
       - name: 赋予 gradlew 执行权限
         run: chmod +x gradlew
 
-      - name: 构建 prod release APK(compileSdk=37 不动)
+      # 4) 构建(compileSdk=37 不动,符合 23 个依赖要求)
+      - name: 构建 prod release APK
         run: ./gradlew assembleProdRelease --no-daemon --stacktrace
 
       - name: 定位 APK
