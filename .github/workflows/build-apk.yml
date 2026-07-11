@@ -19,45 +19,34 @@ jobs:
           distribution: temurin
           java-version: 21
 
-      # 关键:把 SDK Manager 的网络请求重定向到阿里云镜像,
-      # 绕开 dl.google.com 在 GitHub Actions runner 上的可达性问题。
-      # 镜像源:https://mirrors.aliyun.com/android.googlesource.com
-      - name: 安装 Android SDK(用国内镜像)
+      # setup-android@v3 在 runner 上自动:
+      # - 检测预装 cmdline-tools 12.0 不兼容,装 16.0
+      # - 接受所有 Android SDK licenses
+      # - 接受 packages: 指定的包
+      # 日志证明:cmdline-tools 16.0 + platform-tools 都装成功
+      # 现在再加 platforms;android-37 和 build-tools;37.0.0,符合
+      # 项目 compileSdk=37 + 23 个依赖的 metadata 要求
+      - name: 安装 Android SDK(包括 platforms;android-37)
+        uses: android-actions/setup-android@v3
+        with:
+          cmdline-tools-version: 12266719
+          accept-android-sdk-licenses: true
+          packages: |
+            platforms;android-37
+            build-tools;37.0.0
+            platform-tools
+
+      - name: 验证 SDK 已装
         run: |
-          set -e
-
-          # 1. 装 cmdline-tools(从 mirrors 拉,而不是 dl.google.com)
-          cd /tmp
-          echo "=== 下载 cmdline-tools ==="
-          curl -fsSL -o cmdline-tools.zip \
-            "https://mirrors.cloud.tencent.com/AndroidSDK/commandlinetools-linux-13114758_latest.zip" \
-            || curl -fsSL -o cmdline-tools.zip \
-            "https://dl.google.com/android/repository/commandlinetools-linux-13114758_latest.zip"
-
-          ls -la cmdline-tools.zip
-          mkdir -p $ANDROID_HOME/cmdline-tools
-          unzip -q cmdline-tools.zip -d $ANDROID_HOME/cmdline-tools
-          mv $ANDROID_HOME/cmdline-tools/cmdline-tools $ANDROID_HOME/cmdline-tools/latest
-          ls $ANDROID_HOME/cmdline-tools/latest/bin/
-
-          # 2. 接受所有 licenses
-          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses
-
-          # 3. 装 platforms;android-37 + build-tools;37.0.0(关键)
-          #    路径写死 37,因为多个依赖强制要求 compileSdk >= 37(参见上次日志)
-          echo "=== 装 platforms;android-37 ==="
-          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "platforms;android-37" 2>&1 | tail -10
-
-          echo "=== 装 build-tools;37.0.0 ==="
-          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "build-tools;37.0.0" 2>&1 | tail -10
-
-          echo "=== 验证安装 ==="
-          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --list_installed | head -30
+          echo "=== 已安装的 SDK 包 ==="
+          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --list_installed 2>&1 | head -20
+          echo ""
+          ls -la $ANDROID_HOME/platforms/ $ANDROID_HOME/build-tools/
 
       - name: 赋予 gradlew 执行权限
         run: chmod +x gradlew
 
-      - name: 构建 prod release APK(项目 compileSdk=37 保留不动)
+      - name: 构建 prod release APK(compileSdk=37 不动)
         run: ./gradlew assembleProdRelease --no-daemon --stacktrace
 
       - name: 定位 APK
